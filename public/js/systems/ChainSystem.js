@@ -1,11 +1,17 @@
 // ============================================================
-// CHAIN SYSTEM — Elastic rope physics connecting all 4 players
+// CHAIN SYSTEM — Rigid chain constraint connecting all players
 // ============================================================
-// Uses spring physics to simulate elastic chains between players.
-// Each chain segment is drawn as a catenary curve with chain links.
+// Pico Park-style RIGID chain. No elasticity. No spring physics.
 //
-// Spring force: F = -k * (distance - restLength)
-// Plus damping:  F_d = -d * velocity
+// How it works:
+//   1. Each pair of linked players has a maxLength.
+//   2. Every frame, if two players exceed maxLength apart,
+//      their positions are DIRECTLY corrected (clamped)
+//      so they are exactly maxLength apart. No forces.
+//   3. The chain is drawn as a tight straight line with
+//      chain-link dots — no sag, no curves.
+//
+// This gives tight, locked-together cooperative movement.
 // ============================================================
 
 class ChainSystem {
@@ -15,13 +21,10 @@ class ChainSystem {
         this.graphics = scene.add.graphics().setDepth(5);
 
         // Chain properties
-        this.restLength = 80;     // Natural chain length
-        this.maxLength = 250;     // Maximum stretch before force maxes out
-        this.stiffness = 0.4;     // Spring stiffness
-        this.damping = 0.1;       // Velocity damping
+        this.maxLength = 120;  // Maximum allowed distance between linked players
     }
 
-    // Connect all players in a chain: P1-P2-P3-P4
+    // Connect all players in a chain: P1—P2—P3—P4
     connectPlayers(players) {
         this.chains = [];
         for (let i = 0; i < players.length - 1; i++) {
@@ -32,42 +35,76 @@ class ChainSystem {
         }
     }
 
-    // Apply spring forces
+    // Enforce rigid distance constraint — NO forces, direct position correction
     update() {
-        for (const chain of this.chains) {
-            if (!chain.a || !chain.a.active || !chain.b || !chain.b.active) continue;
-            if (chain.a.isDead || chain.b.isDead) continue;
+        // Run multiple iterations for stability (Verlet-style)
+        const iterations = 3;
 
-            const dx = chain.b.x - chain.a.x;
-            const dy = chain.b.y - chain.a.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+        for (let iter = 0; iter < iterations; iter++) {
+            for (const chain of this.chains) {
+                if (!chain.a || !chain.a.active || !chain.b || !chain.b.active) continue;
+                if (chain.a.isDead || chain.b.isDead) continue;
 
-            if (distance < this.restLength) continue; // No force if within rest length
+                const dx = chain.b.x - chain.a.x;
+                const dy = chain.b.y - chain.a.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
 
-            const stretch = distance - this.restLength;
-            const force = stretch * this.stiffness;
+                // Only constrain if exceeding max length
+                if (distance <= this.maxLength) continue;
 
-            // Normalize direction
-            const nx = dx / distance;
-            const ny = dy / distance;
+                // How much we need to correct
+                const excess = distance - this.maxLength;
+                const nx = dx / distance; // normalized direction
+                const ny = dy / distance;
 
-            // Apply force to both players (pull them toward each other)
-            const fx = nx * force;
-            const fy = ny * force;
+                // Determine which players can be moved
+                const aIsLocal = chain.a.body && (chain.a.isLocal || chain.a.isAI);
+                const bIsLocal = chain.b.body && (chain.b.isLocal || chain.b.isAI);
 
-            // Only apply chain force to players that have physics bodies
-            if (chain.a.body && chain.a.isLocal) {
-                chain.a.body.velocity.x += fx * 0.5;
-                chain.a.body.velocity.y += fy * 0.5;
-            }
-            if (chain.b.body && chain.b.isLocal) {
-                chain.b.body.velocity.x -= fx * 0.5;
-                chain.b.body.velocity.y -= fy * 0.5;
+                if (aIsLocal && bIsLocal) {
+                    // Both can move — split correction 50/50
+                    const halfExcess = excess * 0.5;
+                    chain.a.x += nx * halfExcess;
+                    chain.a.y += ny * halfExcess;
+                    chain.b.x -= nx * halfExcess;
+                    chain.b.y -= ny * halfExcess;
+
+                    // Kill outward velocity to prevent fighting the constraint
+                    this.clampVelocity(chain.a, nx, ny, 1);
+                    this.clampVelocity(chain.b, nx, ny, -1);
+                } else if (aIsLocal) {
+                    // Only A can move — pull A toward B
+                    chain.a.x += nx * excess;
+                    chain.a.y += ny * excess;
+                    this.clampVelocity(chain.a, nx, ny, 1);
+                } else if (bIsLocal) {
+                    // Only B can move — pull B toward A
+                    chain.b.x -= nx * excess;
+                    chain.b.y -= ny * excess;
+                    this.clampVelocity(chain.b, nx, ny, -1);
+                }
             }
         }
     }
 
-    // Draw chains visually
+    // Remove the component of velocity that would pull the player AWAY from the chain
+    // This prevents the "snap-back" oscillation completely
+    clampVelocity(player, nx, ny, direction) {
+        if (!player.body) return;
+        const vx = player.body.velocity.x;
+        const vy = player.body.velocity.y;
+
+        // Project velocity onto chain direction
+        const dot = (vx * nx + vy * ny) * direction;
+
+        // If velocity is pushing AWAY from partner, zero out that component
+        if (dot < 0) {
+            player.body.velocity.x -= nx * dot * direction;
+            player.body.velocity.y -= ny * dot * direction;
+        }
+    }
+
+    // Draw chains visually — tight straight lines with chain-link dots
     draw() {
         this.graphics.clear();
 
@@ -80,45 +117,37 @@ class ChainSystem {
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             // Chain color based on tension
+            const ratio = distance / this.maxLength;
             let color, alpha;
-            if (distance < this.restLength) {
-                color = 0x8888cc; alpha = 0.4;
-            } else if (distance < this.maxLength * 0.6) {
-                color = 0xaaaaff; alpha = 0.6;
-            } else if (distance < this.maxLength * 0.85) {
-                color = 0xffaa44; alpha = 0.8;
+            if (ratio < 0.5) {
+                color = 0x8888cc; alpha = 0.4;  // slack — dim blue
+            } else if (ratio < 0.8) {
+                color = 0xaaaaff; alpha = 0.6;  // moderate — brighter blue
+            } else if (ratio < 0.95) {
+                color = 0xffaa44; alpha = 0.8;  // tight — orange warning
             } else {
-                color = 0xff4444; alpha = 1.0;
+                color = 0xff4444; alpha = 1.0;  // maxed — red
             }
 
-            // Draw catenary-style chain (sag in middle)
-            const segments = 12;
-            const sag = Math.max(0, (this.restLength - distance * 0.5)) * 0.3;
-
+            // Draw a straight line (no sag, no catenary — rigid chain)
             this.graphics.lineStyle(2, color, alpha);
             this.graphics.beginPath();
             this.graphics.moveTo(ax, ay);
-
-            for (let i = 1; i <= segments; i++) {
-                const t = i / segments;
-                const px = ax + dx * t;
-                // Parabolic sag
-                const sagAmount = sag * 4 * t * (1 - t);
-                const py = ay + dy * t + sagAmount;
-                this.graphics.lineTo(px, py);
-            }
-
+            this.graphics.lineTo(bx, by);
             this.graphics.strokePath();
 
-            // Draw chain link dots
-            const dotCount = Math.floor(distance / 20);
-            for (let i = 1; i < dotCount; i++) {
-                const t = i / dotCount;
+            // Draw chain link dots along the straight line
+            const linkSpacing = 14;
+            const linkCount = Math.max(1, Math.floor(distance / linkSpacing));
+            for (let i = 1; i < linkCount; i++) {
+                const t = i / linkCount;
                 const px = ax + dx * t;
-                const sagAmount = sag * 4 * t * (1 - t);
-                const py = ay + dy * t + sagAmount;
-                this.graphics.fillStyle(color, alpha * 0.8);
-                this.graphics.fillCircle(px, py, 2);
+                const py = ay + dy * t;
+
+                // Alternate between larger and smaller dots for chain-link feel
+                const radius = (i % 2 === 0) ? 2.5 : 1.5;
+                this.graphics.fillStyle(color, alpha * 0.9);
+                this.graphics.fillCircle(px, py, radius);
             }
         }
     }
