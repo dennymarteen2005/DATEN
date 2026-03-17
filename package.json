@@ -1,0 +1,23 @@
+{
+  "name": "pico-friends",
+  "version": "1.0.0",
+  "description": "A Pico Park-inspired multiplayer co-op puzzle platformer with AI companions",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "game",
+    "multiplayer",
+    "co-op",
+    "phaser",
+    "socket.io"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DATEN — Co-op Puzzle Platformer</title>
+    <meta name="description" content="DATEN: Anti-gravity co-op puzzle platformer with elastic chains. 4 players, AI bots, defy gravity together!">
+
+    <!-- Google Font: Pixel Art style but clean -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Our custom styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- 
+        The game canvas gets injected here by Phaser.js.
+        The wrapper div gives us the dark background + centering.
+    -->
+    <div id="game-wrapper">
+        <div id="game-container"></div>
+    </div>
+
+    <!-- Phaser.js — The 2D game engine (loaded from CDN, no install needed) -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+    <!-- Socket.IO — Real-time multiplayer communication -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- Our game files (order matters! Dependencies first) -->
+    <script src="js/assets/SpriteGenerator.js"></script>
+    <script src="js/systems/NetworkManager.js"></script>
+    <script src="js/systems/LevelManager.js"></script>
+    <script src="js/systems/ChainSystem.js"></script>
+    <script src="js/entities/Player.js"></script>
+    <script src="js/entities/AICompanion.js"></script>
+    <script src="js/scenes/MenuScene.js"></script>
+    <script src="js/scenes/LobbyScene.js"></script>
+    <script src="js/scenes/GameScene.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
