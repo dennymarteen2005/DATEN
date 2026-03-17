@@ -175,15 +175,19 @@ class GameScene extends Phaser.Scene {
                     break;
                 }
                 case 'door': {
-                    const door = this.physics.add.staticImage(x, y - 16, 'door_closed');
+                    const door = this.physics.add.staticImage(x, y - 32, 'door_closed');
                     door.setScale(scale).refreshBody().setDepth(2);
+                    door.body.setSize(28 * scale, 48 * scale);
+                    door.body.setOffset(2 * scale, 0);
                     door.id = obj.id; door.isOpen = false;
                     this.doors.push(door);
                     break;
                 }
                 case 'exitDoor': {
-                    this.exitDoor = this.physics.add.staticImage(x, y - 16, 'door_closed');
+                    this.exitDoor = this.physics.add.staticImage(x, y - 32, 'door_closed');
                     this.exitDoor.setScale(scale).refreshBody().setDepth(2);
+                    this.exitDoor.body.setSize(28 * scale, 48 * scale);
+                    this.exitDoor.body.setOffset(2 * scale, 0);
                     this.exitDoor.id = obj.id; this.exitDoor.isOpen = false;
 
                     // "EXIT" label

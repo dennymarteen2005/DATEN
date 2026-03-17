@@ -113,9 +113,9 @@ class LevelManager {
         // ==========================================
         // Walls creating puzzle rooms
         for (let r = 8; r < H-2; r++) { map[r][150] = 2; }
-        map[H-4][150] = 0; map[H-3][150] = 0; // Door gap
+        map[H-5][150] = 0; map[H-4][150] = 0; map[H-3][150] = 0; // Door gap
         for (let r = 8; r < H-2; r++) { map[r][160] = 2; }
-        map[H-4][160] = 0; map[H-3][160] = 0; // Door gap
+        map[H-5][160] = 0; map[H-4][160] = 0; map[H-3][160] = 0; // Door gap
         // Platforms in puzzle rooms
         map[H-6][144] = 3; map[H-6][145] = 3;
         map[H-8][148] = 3; map[H-8][149] = 3;
@@ -204,9 +204,9 @@ class LevelManager {
                 { type: 'button', id: 'btn1', x: 143, y: H - 3, linkedDoor: 'door1' },
                 { type: 'button', id: 'btn2', x: 153, y: H - 3, linkedDoor: 'door2' },
                 { type: 'button', id: 'btn3', x: 163, y: H - 3, linkedDoor: 'door3' },
-                { type: 'door', id: 'door1', x: 150, y: H - 5 },
-                { type: 'door', id: 'door2', x: 160, y: H - 5 },
-                { type: 'door', id: 'door3', x: 170, y: H - 5 },
+                { type: 'door', id: 'door1', x: 150, y: H - 3 },
+                { type: 'door', id: 'door2', x: 160, y: H - 3 },
+                { type: 'door', id: 'door3', x: 170, y: H - 3 },
 
                 // Checkpoint before final
                 { type: 'checkpoint', id: 'cp5', x: 172, y: H - 4 },
@@ -220,7 +220,7 @@ class LevelManager {
                 { type: 'laser', id: 'l4', x: 180, y: 6, height: 14, onTime: 1800, offTime: 1200 },
 
                 // FINAL: Exit door
-                { type: 'exitDoor', id: 'exit1', x: 195, y: H - 5 }
+                { type: 'exitDoor', id: 'exit1', x: 195, y: H - 3 }
             ]
         };
     }
