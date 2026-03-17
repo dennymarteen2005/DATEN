@@ -227,6 +227,17 @@ io.on('connection', (socket) => {
     io.to(socket.roomCode).emit('gameStateChanged', room.gameState);
   });
 
+  // --- GLOBAL PAUSE / RESUME ---
+  socket.on('pauseGame', () => {
+    if (!socket.roomCode) return;
+    io.to(socket.roomCode).emit('gamePaused');
+  });
+
+  socket.on('resumeGame', () => {
+    if (!socket.roomCode) return;
+    io.to(socket.roomCode).emit('gameResumed');
+  });
+
   // --- PLAYER REACHED GOAL ---
   socket.on('playerReachedGoal', () => {
     const room = rooms.get(socket.roomCode);

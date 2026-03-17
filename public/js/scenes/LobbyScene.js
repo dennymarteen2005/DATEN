@@ -177,7 +177,7 @@ class LobbyScene extends Phaser.Scene {
                 players: data.players,
                 localPlayerIndex: this.playerIndex,
                 playerName: this.playerName,
-                aiEnabled: this.aiEnabled 
+                aiEnabled: (data.settings && data.settings.aiEnabled !== undefined) ? data.settings.aiEnabled : this.aiEnabled
             });
         };
     }

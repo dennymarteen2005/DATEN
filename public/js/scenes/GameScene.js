@@ -93,6 +93,15 @@ class GameScene extends Phaser.Scene {
             S: Phaser.Input.Keyboard.KeyCodes.S,
             D: Phaser.Input.Keyboard.KeyCodes.D
         });
+        
+        // ESC key listener for Pause Menu
+        this.input.keyboard.on('keydown-ESC', () => {
+            if (this.isPaused) {
+                this.requestResume();
+            } else {
+                this.requestPause();
+            }
+        });
 
         // Camera: follow center of all players, zoom out when spread
         this.setupCamera();
@@ -166,7 +175,7 @@ class GameScene extends Phaser.Scene {
                     break;
                 }
                 case 'door': {
-                    const door = this.physics.add.staticImage(x, y - 8, 'door_closed');
+                    const door = this.physics.add.staticImage(x, y - 16, 'door_closed');
                     door.setScale(scale).refreshBody().setDepth(2);
                     door.id = obj.id; door.isOpen = false;
                     this.doors.push(door);
@@ -443,7 +452,7 @@ class GameScene extends Phaser.Scene {
                 fontFamily: '"Press Start 2P"', fontSize: '7px', color: '#ffffff',
                 backgroundColor: 'rgba(255,255,255,0.15)', padding: { x: 8, y: 5 }
             }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101).setInteractive({ useHandCursor: true });
-            pauseBtn.on('pointerdown', () => { this.togglePauseMenu(); });
+            pauseBtn.on('pointerdown', () => { this.requestPause(); });
 
             // Bottom hint
             this.add.text(w / 2, h - 14, 'WASD/Arrows to move • Stay together!', {
@@ -524,11 +533,29 @@ class GameScene extends Phaser.Scene {
     }
 
     // --- PAUSE MENU ---
-    togglePauseMenu() {
+    requestPause() {
+        if (this.isPaused) return;
+        if (this.singlePlayer || !window.networkManager) {
+            this.showPauseMenu();
+        } else {
+            window.networkManager.sendPauseGame();
+        }
+    }
+
+    requestResume() {
+        if (!this.isPaused) return;
+        if (this.singlePlayer || !window.networkManager) {
+            this.closePauseMenu();
+        } else {
+            window.networkManager.sendResumeGame();
+        }
+    }
+
+    showPauseMenu() {
         if (this.isPaused) return; // Menu already open
         
         this.isPaused = true;
-        if (this.singlePlayer) this.physics.pause(); // Only pause physics for solo
+        this.physics.pause(); // Always pause physics now for everyone
 
         const { width, height } = this.scale;
         
@@ -552,7 +579,7 @@ class GameScene extends Phaser.Scene {
             backgroundColor: '#2a8a4a', padding: { x: 16, y: 12 }
         }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive({ useHandCursor: true });
         
-        this.resumeBtn.on('pointerdown', () => this.closePauseMenu());
+        this.resumeBtn.on('pointerdown', () => this.requestResume());
 
         // Exit Button
         this.exitBtn = this.add.text(width/2, height/2 + 60, '✕ EXIT TO MENU', {
@@ -562,16 +589,16 @@ class GameScene extends Phaser.Scene {
         
         this.exitBtn.on('pointerdown', () => {
             if (window.networkManager) {
-                // If in multiplayer, disconnecting drops them out of the room
-                // Real implementation would require properly handling leave room logic
+                // If in multiplayer, you should ideally disconnect or leave room
             }
             this.scene.start('MenuScene');
         });
     }
 
     closePauseMenu() {
+        if (!this.isPaused) return;
         this.isPaused = false;
-        if (this.singlePlayer) this.physics.resume();
+        this.physics.resume();
         this.pauseMenuBg.destroy();
         this.pauseTitle.destroy();
         this.resumeBtn.destroy();
@@ -636,7 +663,39 @@ class GameScene extends Phaser.Scene {
                 this.chainSystem.connectPlayers(this.allPlayers);
             }
         };
-        window.networkManager.onGameStateChanged = (data) => {};
+        window.networkManager.onGameStateChanged = (data) => {
+            if (data.buttons) {
+                for (const id in data.buttons) {
+                    const btn = this.buttons.find(b => b.id === id);
+                    if (btn) btn.isPressed = data.buttons[id];
+                }
+            }
+            if (data.doors) {
+                for (const id in data.doors) {
+                    const door = this.doors.find(d => d.id === id);
+                    if (door) door.isOpen = data.doors[id];
+                }
+                if (this.exitDoor && data.doors[this.exitDoor.id] !== undefined) {
+                    this.exitDoor.isOpen = data.doors[this.exitDoor.id];
+                }
+            }
+        };
+
+        window.networkManager.onGamePaused = () => {
+            this.showPauseMenu();
+        };
+
+        window.networkManager.onGameResumed = () => {
+            if (this.isPaused) {
+                this.isPaused = false;
+                this.physics.resume();
+                this.pauseMenuBg.destroy();
+                this.pauseTitle.destroy();
+                this.resumeBtn.destroy();
+                this.exitBtn.destroy();
+            }
+        };
+
         window.networkManager.onGameWon = () => this.showVictory();
     }
 
@@ -664,13 +723,23 @@ class GameScene extends Phaser.Scene {
                     flipX: this.localPlayer.flipX
                 });
             }
+
+            // Fall boundary reset
+            if (this.localPlayer.y > this.physics.world.bounds.bottom + 50) {
+                this.localPlayer.die();
+            }
         }
 
         // Remote players
         for (const id in this.remotePlayerSprites) this.remotePlayerSprites[id].update();
 
         // AI
-        for (const ai of this.aiCompanions) ai.updateAI(delta);
+        for (const ai of this.aiCompanions) {
+            ai.updateAI(delta);
+            if (!ai.isDead && ai.y > this.physics.world.bounds.bottom + 50) {
+                ai.die();
+            }
+        }
 
         // Chain physics
         this.chainSystem.update();

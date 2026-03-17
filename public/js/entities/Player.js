@@ -15,6 +15,10 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         this.scene = scene;
         this.colorIndex = colorIndex;
         this.isLocal = isLocal;
+        if (!isLocal) {
+            this.targetX = x;
+            this.targetY = y;
+        }
 
         scene.add.existing(this);
         scene.physics.add.existing(this);
@@ -180,6 +184,18 @@ class Player extends Phaser.Physics.Arcade.Sprite {
 
     // --- UPDATE ---
     update() {
+        if (!this.isLocal && this.targetX !== undefined && this.targetY !== undefined) {
+            // Smoothly interpolate position, but snap if distance is too great (respawn fix)
+            const dist = Phaser.Math.Distance.Between(this.x, this.y, this.targetX, this.targetY);
+            if (dist > 150) {
+                this.x = this.targetX;
+                this.y = this.targetY;
+            } else {
+                this.x = Phaser.Math.Linear(this.x, this.targetX, 0.3);
+                this.y = Phaser.Math.Linear(this.y, this.targetY, 0.3);
+            }
+        }
+
         this.chainPoint.x = this.x;
         this.chainPoint.y = this.y;
 
@@ -194,8 +210,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
     }
 
     updateFromNetwork(data) {
-        this.x = Phaser.Math.Linear(this.x, data.x, 0.3);
-        this.y = Phaser.Math.Linear(this.y, data.y, 0.3);
+        this.targetX = data.x;
+        this.targetY = data.y;
         if (data.animation && data.animation !== this.currentAnim) {
             this.currentAnim = data.animation;
             this.play(`player_${this.colorIndex}_${data.animation}`);

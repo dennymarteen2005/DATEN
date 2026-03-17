@@ -23,6 +23,8 @@ class NetworkManager {
         this.onPlayerMoved = null;
         this.onPlayerLeft = null;
         this.onGameStateChanged = null;
+        this.onGamePaused = null;
+        this.onGameResumed = null;
         this.onPlayerCompleted = null;
         this.onNextLevel = null;
         this.onGameWon = null;
@@ -55,6 +57,15 @@ class NetworkManager {
         // Game state changed (button pressed, door opened)
         this.socket.on('gameStateChanged', (data) => {
             if (this.onGameStateChanged) this.onGameStateChanged(data);
+        });
+
+        // Global Pause/Resume
+        this.socket.on('gamePaused', () => {
+            if (this.onGamePaused) this.onGamePaused();
+        });
+        
+        this.socket.on('gameResumed', () => {
+            if (this.onGameResumed) this.onGameResumed();
         });
 
         // A player reached the goal
@@ -130,6 +141,15 @@ class NetworkManager {
     // --- Tell the server you reached the goal ---
     sendPlayerReachedGoal() {
         this.socket.emit('playerReachedGoal');
+    }
+
+    // --- Global Pause/Resume ---
+    sendPauseGame() {
+        this.socket.emit('pauseGame');
+    }
+
+    sendResumeGame() {
+        this.socket.emit('resumeGame');
     }
 }
 
