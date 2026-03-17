@@ -107,6 +107,11 @@ class NetworkManager {
         });
     }
 
+    // --- Update room settings (host only) ---
+    updateRoomSettings(settings) {
+        this.socket.emit('updateRoomSettings', settings);
+    }
+
     // --- Tell the server to start the game ---
     startGame() {
         this.socket.emit('startGame');

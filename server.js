@@ -57,6 +57,8 @@ io.on('connection', (socket) => {
       players: new Map(),
       currentLevel: 0,
       gameStarted: false,
+      isPlaying: false, // Added isPlaying
+      settings: { aiEnabled: true }, // Added default settings
       gameState: {
         buttons: {},
         doors: {},
@@ -154,6 +156,7 @@ io.on('connection', (socket) => {
     if (!room || socket.id !== room.host) return;
 
     room.gameStarted = true;
+    room.isPlaying = true; // Set isPlaying to true
     room.currentLevel = 0;
 
     console.log(`🎮 Game started in room: ${socket.roomCode}`);
@@ -161,8 +164,24 @@ io.on('connection', (socket) => {
     // Tell all players to load the game scene
     io.to(socket.roomCode).emit('gameStart', {
       level: room.currentLevel,
-      players: getPlayersArray(room)
+      players: getPlayersArray(room), // Using existing helper
+      settings: room.settings // Added settings
     });
+  });
+
+  // --- UPDATE ROOM SETTINGS ---
+  // Only the host can update room settings
+  socket.on('updateRoomSettings', (settings) => {
+    const room = rooms.get(socket.roomCode);
+    if (!room || socket.id !== room.host) return;
+
+    // Merge new settings
+    room.settings = { ...room.settings, ...settings };
+
+    console.log(`⚙️ Room ${socket.roomCode} settings updated:`, room.settings);
+
+    // Broadcast new settings to lobby
+    broadcastRoomUpdate(socket.roomCode);
   });
 
   // --- PLAYER MOVEMENT ---
@@ -229,6 +248,8 @@ io.on('connection', (socket) => {
         // Game won!
         io.to(socket.roomCode).emit('gameWon');
         console.log(`🏆 Room ${socket.roomCode} completed the game!`);
+        room.isPlaying = false; // Game ended
+        room.gameStarted = false; // Reset game started state
       } else {
         io.to(socket.roomCode).emit('nextLevel', {
           level: room.currentLevel,
@@ -289,7 +310,8 @@ function broadcastRoomUpdate(roomCode) {
   io.to(roomCode).emit('roomUpdate', {
     roomCode: roomCode,
     players: getPlayersArray(room),
-    hostId: room.host
+    hostId: room.host,
+    settings: room.settings // Added settings to roomUpdate
   });
 }
 

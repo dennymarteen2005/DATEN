@@ -38,11 +38,11 @@ class MenuScene extends Phaser.Scene {
         // --- DATEN TITLE (large, with glow & animation) ---
         this.titleText = this.add.text(width / 2, height * 0.15, 'DATEN', {
             fontFamily: '"Press Start 2P"',
-            fontSize: '52px',
+            fontSize: '64px', // Increased from 52px
             color: '#ffffff',
             align: 'center',
             stroke: '#5a4dff',
-            strokeThickness: 6,
+            strokeThickness: 8,
             shadow: {
                 offsetX: 0, offsetY: 0,
                 color: '#7b68ee',
@@ -76,7 +76,7 @@ class MenuScene extends Phaser.Scene {
         const subtitleFull = 'Co-op Puzzle Platformer';
         this.subtitleText = this.add.text(width / 2, height * 0.28, '', {
             fontFamily: 'Inter',
-            fontSize: '15px',
+            fontSize: '20px', // Increased from 15px
             color: '#8888cc',
             align: 'center'
         }).setOrigin(0.5).setDepth(50);
@@ -262,7 +262,7 @@ class MenuScene extends Phaser.Scene {
         // Button label
         const label = this.add.text(x, y, text, {
             fontFamily: '"Press Start 2P"',
-            fontSize: '10px',
+            fontSize: '14px', // Increased from 10px
             color: '#ffffff',
             align: 'center'
         }).setOrigin(0.5).setDepth(50);

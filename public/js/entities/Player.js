@@ -102,14 +102,14 @@ class Player extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
-    // --- INPUT HANDLING (WASD + Arrows) ---
-    handleInput(cursors, wasd) {
+    // --- INPUT HANDLING (WASD + Arrows + Touch) ---
+    handleInput(cursors, wasd, touchControls) {
         if (this.isDead || this.reachedGoal) {
             this.body.setVelocityX(0);
             return;
         }
 
-        this.isOnGround = this.body.blocked.down || this.body.touching.down;
+        this.isOnGround = this.body.blocked.down || this.body.touching.down || (this.body.allowGravity === false && this.body.blocked.up);
 
         if (this.isOnGround) {
             this.coyoteTimer = this.coyoteTime;
@@ -118,8 +118,8 @@ class Player extends Phaser.Physics.Arcade.Sprite {
             this.coyoteTimer -= this.scene.game.loop.delta;
         }
 
-        const left =  cursors.left.isDown  || (wasd && wasd.A.isDown);
-        const right = cursors.right.isDown || (wasd && wasd.D.isDown);
+        const left =  cursors.left.isDown  || (wasd && wasd.A.isDown) || (touchControls && touchControls.left);
+        const right = cursors.right.isDown || (wasd && wasd.D.isDown) || (touchControls && touchControls.right);
 
         if (left) {
             this.body.setVelocityX(-this.moveSpeed);
@@ -132,9 +132,15 @@ class Player extends Phaser.Physics.Arcade.Sprite {
             if (Math.abs(this.body.velocity.x) < 5) this.body.setVelocityX(0);
         }
 
-        const jumpPressed = Phaser.Input.Keyboard.JustDown(cursors.up) ||
-                            (wasd && Phaser.Input.Keyboard.JustDown(wasd.W));
-        if (jumpPressed && this.coyoteTimer > 0 && !this.hasJumped) {
+        const jumpJustPressed = Phaser.Input.Keyboard.JustDown(cursors.up) ||
+                                (wasd && Phaser.Input.Keyboard.JustDown(wasd.W));
+        // For touch, we need to ensure they don't hold it and fly. We only trigger on first touch down flag
+        const touchJump = touchControls && touchControls.up;
+        let jumpWantsTrigger = jumpJustPressed;
+        if (touchJump && !this.wasTouchingJump) jumpWantsTrigger = true;
+        this.wasTouchingJump = touchJump;
+
+        if (jumpWantsTrigger && this.coyoteTimer > 0 && !this.hasJumped) {
             if (this.gravityDir === 'down') {
                 this.body.setVelocityY(this.jumpForce);
             } else if (this.gravityDir === 'up') {

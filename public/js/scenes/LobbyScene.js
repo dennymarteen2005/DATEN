@@ -19,6 +19,7 @@ class LobbyScene extends Phaser.Scene {
         this.playerIndex = data.playerIndex;
         this.isHost = data.isHost;
         this.players = [];
+        this.aiEnabled = true; // Default to AI on
     }
 
     create() {
@@ -137,8 +138,36 @@ class LobbyScene extends Phaser.Scene {
             this.scene.start('MenuScene');
         });
 
+        // --- AI Bots Toggle (host only) ---
+        const toggleY = height - 100;
+        this.aiToggleText = this.add.text(width / 2, toggleY, 'AI BOTS: ON', {
+            fontFamily: '"Press Start 2P"',
+            fontSize: '9px',
+            color: '#66dd66',
+            backgroundColor: 'rgba(102,221,102,0.15)',
+            padding: { x: 10, y: 6 }
+        }).setOrigin(0.5);
+
+        if (this.isHost) {
+            this.aiToggleText.setInteractive({ useHandCursor: true });
+            this.aiToggleText.on('pointerdown', () => {
+                this.aiEnabled = !this.aiEnabled;
+                window.networkManager.updateRoomSettings({ aiEnabled: this.aiEnabled });
+                this.updateAIToggleDisplay();
+                // Send visual update immediately for host feel
+                this.updatePlayerSlots(this.players);
+            });
+            this.add.text(width / 2, toggleY + 18, '(Click to toggle empty slots)', {
+                fontFamily: 'Inter', fontSize: '9px', color: '#555588'
+            }).setOrigin(0.5);
+        }
+
         // --- Listen for updates from server ---
         window.networkManager.onRoomUpdate = (data) => {
+            if (data.settings !== undefined && data.settings.aiEnabled !== undefined) {
+                this.aiEnabled = data.settings.aiEnabled;
+                this.updateAIToggleDisplay();
+            }
             this.updatePlayerSlots(data.players);
         };
 
@@ -147,9 +176,22 @@ class LobbyScene extends Phaser.Scene {
                 level: data.level,
                 players: data.players,
                 localPlayerIndex: this.playerIndex,
-                playerName: this.playerName
+                playerName: this.playerName,
+                aiEnabled: this.aiEnabled 
             });
         };
+    }
+
+    updateAIToggleDisplay() {
+        if (this.aiEnabled) {
+            this.aiToggleText.setText('AI BOTS: ON');
+            this.aiToggleText.setColor('#66dd66');
+            this.aiToggleText.setBackgroundColor('rgba(102,221,102,0.15)');
+        } else {
+            this.aiToggleText.setText('AI BOTS: OFF');
+            this.aiToggleText.setColor('#ff4444');
+            this.aiToggleText.setBackgroundColor('rgba(255,68,68,0.15)');
+        }
     }
 
     // --- Update the player slots display ---
@@ -163,9 +205,12 @@ class LobbyScene extends Phaser.Scene {
                 const hostBadge = player.isHost ? ' ★' : '';
                 this.slotTexts[i].setText(`${slotNames[i]}: ${player.name}${hostBadge}`);
                 this.slotTexts[i].setColor('#ffffff');
-            } else {
+            } else if (this.aiEnabled) {
                 this.slotTexts[i].setText(`${slotNames[i]}: [AI Bot]`);
                 this.slotTexts[i].setColor('#ffdd44');
+            } else {
+                this.slotTexts[i].setText(`${slotNames[i]}: [Empty Slot]`);
+                this.slotTexts[i].setColor('#444455');
             }
         }
     }

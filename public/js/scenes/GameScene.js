@@ -1,5 +1,15 @@
-// ============================================================
 // GAME SCENE — DATEN Anti-Gravity Chain Co-op Game
+// ============================================================
+// The core gameplay scene with:
+// - Chain physics connecting all 4 players
+// - Gravity zones (flip gravity!)
+// - Spikes, lasers, falling platforms
+// - Stacking, buttons, doors
+// - Checkpoints, respawn
+// - Camera that follows all players
+// - Full dashboard HUD with Pause Menu
+// - Mobile touch controls
+// ============================================================
 // ============================================================
 // The core gameplay scene with:
 // - Chain physics connecting all 4 players
@@ -22,6 +32,7 @@ class GameScene extends Phaser.Scene {
         this.localPlayerIndex = data.localPlayerIndex || 0;
         this.playerName = data.playerName || 'Player';
         this.singlePlayer = data.singlePlayer || false;
+        this.aiEnabled = (data.aiEnabled !== undefined) ? data.aiEnabled : true;
     }
 
     preload() {
@@ -89,12 +100,17 @@ class GameScene extends Phaser.Scene {
         // HUD
         this.createHUD();
 
+        // --- TOUCH CONTROLS (for mobile) ---
+        this.touchControls = { left: false, right: false, up: false, down: false };
+        this.createMobileControls();
+
         // Level intro
         this.showLevelName();
 
         // Timers
         this.networkUpdateTimer = 0;
         this.dashboardTimer = 0;
+        this.isPaused = false;
     }
 
     // --- BUILD TILEMAP ---
@@ -282,7 +298,7 @@ class GameScene extends Phaser.Scene {
         }
 
         // AI companions (copycat friends!)
-        if (!this.singlePlayer) {
+        if (!this.singlePlayer && this.aiEnabled) {
             const friendNames = ['Buddy', 'Echo', 'Shadow', 'Mimic'];
             for (let i = 0; i < 4; i++) {
                 if (i === this.localPlayerIndex || humanIndices.includes(i)) continue;
@@ -396,7 +412,11 @@ class GameScene extends Phaser.Scene {
         this.hudRight.lineStyle(1, 0x5a4dff, 0.5);
         this.hudRight.strokeRoundedRect(width - pad - 160, pad, 156, 50, 6);
 
-        const playerTxt = this.singlePlayer ? 'PLAYERS: 1/1 (SOLO)' : `PLAYERS: ${this.allPlayers.length}/4`;
+        const totalHumans = this.remotePlayers.length + 1; // You + remote friends
+        const playerTxt = this.singlePlayer ? 'PLAYERS: 1/1 (SOLO)' : 
+                          (!this.aiEnabled && totalHumans < 4) ? `PLAYERS: ${totalHumans}/${totalHumans} (NO BOTS)` : 
+                          `PLAYERS: ${this.allPlayers.length}/4`;
+        
         this.hudPlayers = this.add.text(width - pad - 154, pad + 4, playerTxt, {
             fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#fff'
         }).setScrollFactor(0).setDepth(101);
@@ -410,21 +430,15 @@ class GameScene extends Phaser.Scene {
             fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#888'
         }).setScrollFactor(0).setDepth(101);
 
-        // Top-center: EXIT + RESTART buttons
-        const exitBtn = this.add.text(width / 2 - 60, pad + 4, '✕ EXIT', {
-            fontFamily: '"Press Start 2P"', fontSize: '7px', color: '#ff4444',
-            backgroundColor: 'rgba(255,50,50,0.15)', padding: { x: 6, y: 4 }
-        }).setScrollFactor(0).setDepth(101).setInteractive({ useHandCursor: true });
-        exitBtn.on('pointerdown', () => this.scene.start('MenuScene'));
-
-        const restartBtn = this.add.text(width / 2 + 20, pad + 4, '↻ RESTART', {
-            fontFamily: '"Press Start 2P"', fontSize: '7px', color: '#ffaa44',
-            backgroundColor: 'rgba(255,170,68,0.15)', padding: { x: 6, y: 4 }
-        }).setScrollFactor(0).setDepth(101).setInteractive({ useHandCursor: true });
-        restartBtn.on('pointerdown', () => this.scene.restart());
+        // Top-center: PAUSE button
+        const pauseBtn = this.add.text(width / 2, pad + 4, '⏸ PAUSE', {
+            fontFamily: '"Press Start 2P"', fontSize: '7px', color: '#ffffff',
+            backgroundColor: 'rgba(255,255,255,0.15)', padding: { x: 8, y: 5 }
+        }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101).setInteractive({ useHandCursor: true });
+        pauseBtn.on('pointerdown', () => this.togglePauseMenu());
 
         // Bottom hint
-        this.add.text(width / 2, height - 14, 'WASD or Arrows to move • Stay together!', {
+        this.add.text(width / 2, height - 14, 'WASD/Arrows to move • Stay together!', {
             fontFamily: 'Inter', fontSize: '9px', color: '#333355'
         }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
     }
@@ -440,7 +454,7 @@ class GameScene extends Phaser.Scene {
         this.hudStatus.setColor(pressed === totalBtns ? '#66dd66' : '#888');
 
         // Chain status
-        if (!this.singlePlayer) {
+        if (!this.singlePlayer && this.allPlayers.length > 1) { // Only show chain status if there's someone to connect to
             const maxDist = this.chainSystem.chains.reduce((max, c) => {
                 if (!c.a || !c.b) return max;
                 return Math.max(max, Phaser.Math.Distance.Between(c.a.x, c.a.y, c.b.x, c.b.y));
@@ -456,6 +470,100 @@ class GameScene extends Phaser.Scene {
                 this.hudChains.setColor('#8888cc');
             }
         }
+    }
+
+    // --- MOBILE TOUCH CONTROLS ---
+    createMobileControls() {
+        const { width, height } = this.scale;
+        if (!this.sys.game.device.input.touch) return; // Only add if touch is supported
+
+        // Disable right click menu
+        this.input.mouse.disableContextMenu();
+
+        const btnZone = 120; // Size of touch zones
+        
+        // Left zone
+        const leftZone = this.add.zone(0, height - btnZone, btnZone, btnZone).setOrigin(0, 0).setInteractive().setScrollFactor(0).setDepth(400);
+        leftZone.on('pointerdown', () => { this.touchControls.left = true; this.touchControls.right = false; });
+        leftZone.on('pointerup', () => this.touchControls.left = false);
+        leftZone.on('pointerout', () => this.touchControls.left = false);
+        
+        // Right zone
+        const rightZone = this.add.zone(btnZone, height - btnZone, btnZone, btnZone).setOrigin(0, 0).setInteractive().setScrollFactor(0).setDepth(400);
+        rightZone.on('pointerdown', () => { this.touchControls.right = true; this.touchControls.left = false; });
+        rightZone.on('pointerup', () => this.touchControls.right = false);
+        rightZone.on('pointerout', () => this.touchControls.right = false);
+
+        // Jump zone (Right side of screen)
+        const jumpZone = this.add.zone(width - btnZone*1.5, height - btnZone*1.5, btnZone*1.5, btnZone*1.5).setOrigin(0, 0).setInteractive().setScrollFactor(0).setDepth(400);
+        jumpZone.on('pointerdown', () => { this.touchControls.up = true; });
+        jumpZone.on('pointerup', () => this.touchControls.up = false);
+        jumpZone.on('pointerout', () => this.touchControls.up = false);
+
+        // Visual hints
+        this.add.circle(60, height - 60, 40, 0xffffff, 0.1).setScrollFactor(0).setDepth(399);
+        this.add.text(60, height - 60, '◀', { fontSize: '24px', color: '#fff', alpha: 0.5 }).setOrigin(0.5).setScrollFactor(0).setDepth(399);
+        
+        this.add.circle(180, height - 60, 40, 0xffffff, 0.1).setScrollFactor(0).setDepth(399);
+        this.add.text(180, height - 60, '▶', { fontSize: '24px', color: '#fff', alpha: 0.5 }).setOrigin(0.5).setScrollFactor(0).setDepth(399);
+        
+        this.add.circle(width - 80, height - 80, 50, 0xffffff, 0.1).setScrollFactor(0).setDepth(399);
+        this.add.text(width - 80, height - 80, 'JUMP', { fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#fff', alpha: 0.5 }).setOrigin(0.5).setScrollFactor(0).setDepth(399);
+    }
+
+    // --- PAUSE MENU ---
+    togglePauseMenu() {
+        if (this.isPaused) return; // Menu already open
+        
+        this.isPaused = true;
+        if (this.singlePlayer) this.physics.pause(); // Only pause physics for solo
+
+        const { width, height } = this.scale;
+        
+        // Overlay container so we can cleanly destroy it
+        this.pauseMenuBg = this.add.graphics().setScrollFactor(0).setDepth(500);
+        this.pauseMenuBg.fillStyle(0x000000, 0.85);
+        this.pauseMenuBg.fillRect(0, 0, width, height);
+        
+        this.pauseMenuBg.lineStyle(2, 0x5a4dff, 1);
+        this.pauseMenuBg.strokeRoundedRect(width/2 - 150, height/2 - 100, 300, 200, 16);
+        this.pauseMenuBg.fillStyle(0x0a0a1a, 1);
+        this.pauseMenuBg.fillRoundedRect(width/2 - 150, height/2 - 100, 300, 200, 16);
+
+        this.pauseTitle = this.add.text(width/2, height/2 - 60, 'PAUSED', {
+            fontFamily: '"Press Start 2P"', fontSize: '20px', color: '#ffffff'
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(501);
+
+        // Resume Button
+        this.resumeBtn = this.add.text(width/2, height/2 + 10, '▶ RESUME', {
+            fontFamily: '"Press Start 2P"', fontSize: '12px', color: '#fff',
+            backgroundColor: '#2a8a4a', padding: { x: 16, y: 12 }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive({ useHandCursor: true });
+        
+        this.resumeBtn.on('pointerdown', () => this.closePauseMenu());
+
+        // Exit Button
+        this.exitBtn = this.add.text(width/2, height/2 + 60, '✕ EXIT TO MENU', {
+            fontFamily: '"Press Start 2P"', fontSize: '10px', color: '#fff',
+            backgroundColor: '#ff4444', padding: { x: 16, y: 12 }
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(501).setInteractive({ useHandCursor: true });
+        
+        this.exitBtn.on('pointerdown', () => {
+            if (window.networkManager) {
+                // If in multiplayer, disconnecting drops them out of the room
+                // Real implementation would require properly handling leave room logic
+            }
+            this.scene.start('MenuScene');
+        });
+    }
+
+    closePauseMenu() {
+        this.isPaused = false;
+        if (this.singlePlayer) this.physics.resume();
+        this.pauseMenuBg.destroy();
+        this.pauseTitle.destroy();
+        this.resumeBtn.destroy();
+        this.exitBtn.destroy();
     }
 
     // --- LEVEL INTRO ---
@@ -524,9 +632,12 @@ class GameScene extends Phaser.Scene {
     // MAIN UPDATE LOOP
     // ============================================================
     update(time, delta) {
+        if (this.isPaused) return; // Skip logic when paused
+
         // Local player input
         if (this.localPlayer && !this.localPlayer.isDead && !this.localPlayer.reachedGoal) {
-            this.localPlayer.handleInput(this.cursors, this.wasd);
+            // Merge mobile touch controls with keyboard
+            this.localPlayer.handleInput(this.cursors, this.wasd, this.touchControls);
             this.localPlayer.update();
 
             // Network sync
@@ -673,15 +784,24 @@ class GameScene extends Phaser.Scene {
         for (const btn of this.buttons) {
             let wasPressed = btn.isPressed;
             btn.isPressed = false;
+            
+            // USE PROPER BOUNDING BOX INTERSECTION INSTEAD OF DISTANCE CHECK
+            const btnRect = btn.getBounds();
+            // Shrink the button rect slightly so they have to stand ON it, not beside it
+            btnRect.y += 8; btnRect.height -= 8; 
+
             for (const player of activePlayers) {
-                if (Phaser.Math.Distance.Between(player.x, player.y, btn.x, btn.y) < 28 &&
+                const pRect = player.getBounds();
+                if (Phaser.Geom.Intersects.RectangleToRectangle(pRect, btnRect) &&
                     player.body && (player.body.blocked.down || player.body.touching.down || !player.body.allowGravity)) {
                     btn.isPressed = true; break;
                 }
             }
             
-            // Latch buttons in single player mode so puzzles are solvable alone!
-            if (this.singlePlayer && wasPressed) btn.isPressed = true;
+            // Latch buttons if there aren't enough players to stand on all 3 logic buttons
+            const totalHumans = this.remotePlayers.length + 1;
+            const needsLatching = this.singlePlayer || (!this.aiEnabled && totalHumans < 3);
+            if (needsLatching && wasPressed) btn.isPressed = true;
 
             btn.setTexture(btn.isPressed ? 'button_on' : 'button_off');
             if (btn.isPressed !== wasPressed) {
