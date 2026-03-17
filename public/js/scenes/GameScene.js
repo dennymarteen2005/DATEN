@@ -21,6 +21,7 @@ class GameScene extends Phaser.Scene {
         this.remotePlayers = data.players || [];
         this.localPlayerIndex = data.localPlayerIndex || 0;
         this.playerName = data.playerName || 'Player';
+        this.singlePlayer = data.singlePlayer || false;
     }
 
     preload() {
@@ -69,7 +70,9 @@ class GameScene extends Phaser.Scene {
 
         // Chain system
         this.chainSystem = new ChainSystem(this);
-        this.chainSystem.connectPlayers(this.allPlayers);
+        if (!this.singlePlayer) {
+            this.chainSystem.connectPlayers(this.allPlayers);
+        }
 
         // Input
         this.cursors = this.input.keyboard.createCursorKeys();
@@ -266,28 +269,32 @@ class GameScene extends Phaser.Scene {
         this.allPlayers.push(this.localPlayer);
 
         // Remote players
-        for (const rp of this.remotePlayers) {
-            if (rp.colorIndex === this.localPlayerIndex) continue;
-            const rs = spawns[rp.colorIndex] || spawns[0];
-            const remote = new Player(this, rs.x * tileSize * scale + tileSize, rs.y * tileSize * scale + tileSize, rp.colorIndex, false);
-            remote.setPlayerName(rp.name);
-            remote.body.allowGravity = false;
-            this.remotePlayerSprites[rp.id] = remote;
-            this.allPlayers.push(remote);
+        if (!this.singlePlayer) {
+            for (const rp of this.remotePlayers) {
+                if (rp.colorIndex === this.localPlayerIndex) continue;
+                const rs = spawns[rp.colorIndex] || spawns[0];
+                const remote = new Player(this, rs.x * tileSize * scale + tileSize, rs.y * tileSize * scale + tileSize, rp.colorIndex, false);
+                remote.setPlayerName(rp.name);
+                remote.body.allowGravity = false;
+                this.remotePlayerSprites[rp.id] = remote;
+                this.allPlayers.push(remote);
+            }
         }
 
         // AI companions (copycat friends!)
-        const friendNames = ['Buddy', 'Echo', 'Shadow', 'Mimic'];
-        for (let i = 0; i < 4; i++) {
-            if (i === this.localPlayerIndex || humanIndices.includes(i)) continue;
-            const as = spawns[i] || spawns[0];
-            const ai = new AICompanion(this, as.x * tileSize * scale + tileSize, as.y * tileSize * scale + tileSize, i);
-            ai.setPlayerName(friendNames[i] || 'Friend');
-            ai.setLeader(this.localPlayer); // AI copies what YOU do!
-            this.physics.add.collider(ai, this.groundTiles);
-            this.physics.add.collider(ai, this.platformTiles);
-            this.aiCompanions.push(ai);
-            this.allPlayers.push(ai);
+        if (!this.singlePlayer) {
+            const friendNames = ['Buddy', 'Echo', 'Shadow', 'Mimic'];
+            for (let i = 0; i < 4; i++) {
+                if (i === this.localPlayerIndex || humanIndices.includes(i)) continue;
+                const as = spawns[i] || spawns[0];
+                const ai = new AICompanion(this, as.x * tileSize * scale + tileSize, as.y * tileSize * scale + tileSize, i);
+                ai.setPlayerName(friendNames[i] || 'Friend');
+                ai.setLeader(this.localPlayer); // AI copies what YOU do!
+                this.physics.add.collider(ai, this.groundTiles);
+                this.physics.add.collider(ai, this.platformTiles);
+                this.aiCompanions.push(ai);
+                this.allPlayers.push(ai);
+            }
         }
 
         // --- STACKING: players can stand on each other ---
@@ -389,11 +396,13 @@ class GameScene extends Phaser.Scene {
         this.hudRight.lineStyle(1, 0x5a4dff, 0.5);
         this.hudRight.strokeRoundedRect(width - pad - 160, pad, 156, 50, 6);
 
-        this.hudPlayers = this.add.text(width - pad - 154, pad + 4, `PLAYERS: ${this.allPlayers.length}/4`, {
+        const playerTxt = this.singlePlayer ? 'PLAYERS: 1/1 (SOLO)' : `PLAYERS: ${this.allPlayers.length}/4`;
+        this.hudPlayers = this.add.text(width - pad - 154, pad + 4, playerTxt, {
             fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#fff'
         }).setScrollFactor(0).setDepth(101);
 
-        this.hudChains = this.add.text(width - pad - 154, pad + 18, 'CHAINS: Connected', {
+        const chainTxt = this.singlePlayer ? 'CHAINS: Offline' : 'CHAINS: Connected';
+        this.hudChains = this.add.text(width - pad - 154, pad + 18, chainTxt, {
             fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#8888cc'
         }).setScrollFactor(0).setDepth(101);
 
@@ -431,19 +440,21 @@ class GameScene extends Phaser.Scene {
         this.hudStatus.setColor(pressed === totalBtns ? '#66dd66' : '#888');
 
         // Chain status
-        const maxDist = this.chainSystem.chains.reduce((max, c) => {
-            if (!c.a || !c.b) return max;
-            return Math.max(max, Phaser.Math.Distance.Between(c.a.x, c.a.y, c.b.x, c.b.y));
-        }, 0);
-        if (maxDist > this.chainSystem.maxLength * 0.85) {
-            this.hudChains.setText('CHAINS: ⚠ STRETCHED!');
-            this.hudChains.setColor('#ff4444');
-        } else if (maxDist > this.chainSystem.maxLength * 0.6) {
-            this.hudChains.setText('CHAINS: Tense');
-            this.hudChains.setColor('#ffaa44');
-        } else {
-            this.hudChains.setText('CHAINS: Connected');
-            this.hudChains.setColor('#8888cc');
+        if (!this.singlePlayer) {
+            const maxDist = this.chainSystem.chains.reduce((max, c) => {
+                if (!c.a || !c.b) return max;
+                return Math.max(max, Phaser.Math.Distance.Between(c.a.x, c.a.y, c.b.x, c.b.y));
+            }, 0);
+            if (maxDist > this.chainSystem.maxLength * 0.85) {
+                this.hudChains.setText('CHAINS: ⚠ STRETCHED!');
+                this.hudChains.setColor('#ff4444');
+            } else if (maxDist > this.chainSystem.maxLength * 0.6) {
+                this.hudChains.setText('CHAINS: Tense');
+                this.hudChains.setColor('#ffaa44');
+            } else {
+                this.hudChains.setText('CHAINS: Connected');
+                this.hudChains.setColor('#8888cc');
+            }
         }
     }
 
@@ -668,6 +679,10 @@ class GameScene extends Phaser.Scene {
                     btn.isPressed = true; break;
                 }
             }
+            
+            // Latch buttons in single player mode so puzzles are solvable alone!
+            if (this.singlePlayer && wasPressed) btn.isPressed = true;
+
             btn.setTexture(btn.isPressed ? 'button_on' : 'button_off');
             if (btn.isPressed !== wasPressed) {
                 const door = this.doors.find(d => d.id === btn.linkedDoor);

@@ -188,9 +188,23 @@ class MenuScene extends Phaser.Scene {
             }
         });
 
+        // --- SINGLE PLAYER BUTTON ---
+        this.createAnimatedButton(
+            width / 2, height * 0.63,
+            '👤  SINGLE PLAYER',
+            0xff8c00, 0xffa500, // Orange theme for solo
+            () => {
+                this.scene.start('GameScene', {
+                    singlePlayer: true,
+                    localPlayerIndex: 0,
+                    playerName: this.playerName
+                });
+            }
+        );
+
         // --- CREATE ROOM BUTTON ---
         this.createAnimatedButton(
-            width / 2, height * 0.70,
+            width / 2, height * 0.74,
             '🎮  CREATE ROOM',
             0x5a4dff, 0x7b68ee,
             () => this.createRoom()
@@ -198,7 +212,7 @@ class MenuScene extends Phaser.Scene {
 
         // --- JOIN ROOM BUTTON ---
         this.createAnimatedButton(
-            width / 2, height * 0.81,
+            width / 2, height * 0.85,
             '🤝  JOIN ROOM',
             0x2a8a4a, 0x3ab85a,
             () => this.joinRoom()
