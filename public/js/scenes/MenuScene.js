@@ -422,7 +422,8 @@ class MenuScene extends Phaser.Scene {
                 roomCode: result.roomCode,
                 playerName: this.playerName,
                 playerIndex: result.playerIndex,
-                isHost: false
+                isHost: false,
+                settings: result.settings
             });
         } catch (error) {
             alert(error || 'Failed to join room. Check the code and try again.');

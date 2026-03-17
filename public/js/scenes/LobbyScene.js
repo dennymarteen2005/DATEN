@@ -19,7 +19,7 @@ class LobbyScene extends Phaser.Scene {
         this.playerIndex = data.playerIndex;
         this.isHost = data.isHost;
         this.players = [];
-        this.aiEnabled = true; // Default to AI on
+        this.aiEnabled = (data.settings && data.settings.aiEnabled !== undefined) ? data.settings.aiEnabled : true;
     }
 
     create() {

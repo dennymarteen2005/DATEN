@@ -143,7 +143,8 @@ io.on('connection', (socket) => {
       success: true,
       roomCode: roomCode,
       playerIndex: colorIndex,
-      playerId: socket.id
+      playerId: socket.id,
+      settings: room.settings
     });
 
     broadcastRoomUpdate(roomCode);

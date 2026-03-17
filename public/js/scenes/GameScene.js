@@ -111,6 +111,9 @@ class GameScene extends Phaser.Scene {
         this.networkUpdateTimer = 0;
         this.dashboardTimer = 0;
         this.isPaused = false;
+
+        // --- NETWORK LISTENERS ---
+        this.setupNetworkListeners();
     }
 
     // --- BUILD TILEMAP ---
@@ -385,65 +388,74 @@ class GameScene extends Phaser.Scene {
     createHUD() {
         const { width, height } = this.scale;
         const pad = 10;
-
-        // Top-left: Level info
-        this.hudBg = this.add.graphics().setScrollFactor(0).setDepth(100);
-        this.hudBg.fillStyle(0x0a0a1a, 0.8);
-        this.hudBg.fillRoundedRect(pad, pad, 220, 50, 6);
-        this.hudBg.lineStyle(1, 0x5a4dff, 0.5);
-        this.hudBg.strokeRoundedRect(pad, pad, 220, 50, 6);
-
-        this.add.text(pad + 6, pad + 4, 'DATEN', {
-            fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#5a4dff'
-        }).setScrollFactor(0).setDepth(101);
-
-        this.hudText = this.add.text(pad + 6, pad + 16, 'Level 1 — Anti-Gravity Gauntlet', {
-            fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#ffffff'
-        }).setScrollFactor(0).setDepth(101);
-
-        this.hudStatus = this.add.text(pad + 6, pad + 30, 'SWITCHES: 0/3 • DOORS: 0/3', {
-            fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#888'
-        }).setScrollFactor(0).setDepth(101);
-
-        // Top-right: Player indicator + controls
-        this.hudRight = this.add.graphics().setScrollFactor(0).setDepth(100);
-        this.hudRight.fillStyle(0x0a0a1a, 0.8);
-        this.hudRight.fillRoundedRect(width - pad - 160, pad, 156, 50, 6);
-        this.hudRight.lineStyle(1, 0x5a4dff, 0.5);
-        this.hudRight.strokeRoundedRect(width - pad - 160, pad, 156, 50, 6);
-
-        const totalHumans = this.remotePlayers.length + 1; // You + remote friends
-        const playerTxt = this.singlePlayer ? 'PLAYERS: 1/1 (SOLO)' : 
-                          (!this.aiEnabled && totalHumans < 4) ? `PLAYERS: ${totalHumans}/${totalHumans} (NO BOTS)` : 
-                          `PLAYERS: ${this.allPlayers.length}/4`;
         
-        this.hudPlayers = this.add.text(width - pad - 154, pad + 4, playerTxt, {
-            fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#fff'
-        }).setScrollFactor(0).setDepth(101);
+        // Wait 1 frame so camera size is finalized
+        this.time.delayedCall(10, () => {
+            const w = this.scale.width;
+            const h = this.scale.height;
 
-        const chainTxt = this.singlePlayer ? 'CHAINS: Offline' : 'CHAINS: Connected';
-        this.hudChains = this.add.text(width - pad - 154, pad + 18, chainTxt, {
-            fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#8888cc'
-        }).setScrollFactor(0).setDepth(101);
+            // Top-left: Level info
+            this.hudBg = this.add.graphics().setScrollFactor(0).setDepth(100);
+            this.hudBg.fillStyle(0x0a0a1a, 0.8);
+            this.hudBg.fillRoundedRect(pad, pad, 220, 50, 6);
+            this.hudBg.lineStyle(1, 0x5a4dff, 0.5);
+            this.hudBg.strokeRoundedRect(pad, pad, 220, 50, 6);
 
-        this.hudCheckpoint = this.add.text(width - pad - 154, pad + 32, 'CHECKPOINT: START', {
-            fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#888'
-        }).setScrollFactor(0).setDepth(101);
+            this.add.text(pad + 6, pad + 4, 'DATEN', {
+                fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#5a4dff'
+            }).setScrollFactor(0).setDepth(101);
 
-        // Top-center: PAUSE button
-        const pauseBtn = this.add.text(width / 2, pad + 4, '⏸ PAUSE', {
-            fontFamily: '"Press Start 2P"', fontSize: '7px', color: '#ffffff',
-            backgroundColor: 'rgba(255,255,255,0.15)', padding: { x: 8, y: 5 }
-        }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101).setInteractive({ useHandCursor: true });
-        pauseBtn.on('pointerdown', () => this.togglePauseMenu());
+            this.hudText = this.add.text(pad + 6, pad + 16, 'Level ' + (this.currentLevel + 1) + ' — Anti-Gravity Gauntlet', {
+                fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#ffffff'
+            }).setScrollFactor(0).setDepth(101);
 
-        // Bottom hint
-        this.add.text(width / 2, height - 14, 'WASD/Arrows to move • Stay together!', {
-            fontFamily: 'Inter', fontSize: '9px', color: '#333355'
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+            this.hudStatus = this.add.text(pad + 6, pad + 30, 'SWITCHES: 0/3 • DOORS: 0/3', {
+                fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#888'
+            }).setScrollFactor(0).setDepth(101);
+
+            // Top-right: Player indicator + controls
+            this.hudRight = this.add.graphics().setScrollFactor(0).setDepth(100);
+            this.hudRight.fillStyle(0x0a0a1a, 0.8);
+            this.hudRight.fillRoundedRect(w - pad - 160, pad, 156, 50, 6);
+            this.hudRight.lineStyle(1, 0x5a4dff, 0.5);
+            this.hudRight.strokeRoundedRect(w - pad - 160, pad, 156, 50, 6);
+
+            const totalHumans = this.remotePlayers.length + 1; // You + remote friends
+            const playerTxt = this.singlePlayer ? 'PLAYERS: 1/1 (SOLO)' : 
+                              (!this.aiEnabled && totalHumans < 4) ? `PLAYERS: ${totalHumans}/${totalHumans} (NO BOTS)` : 
+                              `PLAYERS: ${this.allPlayers.length}/4`;
+            
+            this.hudPlayers = this.add.text(w - pad - 154, pad + 4, playerTxt, {
+                fontFamily: '"Press Start 2P"', fontSize: '6px', color: '#fff'
+            }).setScrollFactor(0).setDepth(101);
+
+            const chainTxt = this.singlePlayer ? 'CHAINS: Offline' : 'CHAINS: Connected';
+            this.hudChains = this.add.text(w - pad - 154, pad + 18, chainTxt, {
+                fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#8888cc'
+            }).setScrollFactor(0).setDepth(101);
+
+            this.hudCheckpoint = this.add.text(w - pad - 154, pad + 32, 'CHECKPOINT: START', {
+                fontFamily: '"Press Start 2P"', fontSize: '5px', color: '#888'
+            }).setScrollFactor(0).setDepth(101);
+
+            // Top-center: PAUSE button
+            const pauseBtn = this.add.text(w / 2, pad + 4, '⏸ PAUSE', {
+                fontFamily: '"Press Start 2P"', fontSize: '7px', color: '#ffffff',
+                backgroundColor: 'rgba(255,255,255,0.15)', padding: { x: 8, y: 5 }
+            }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101).setInteractive({ useHandCursor: true });
+            pauseBtn.on('pointerdown', () => { this.togglePauseMenu(); });
+
+            // Bottom hint
+            this.add.text(w / 2, h - 14, 'WASD/Arrows to move • Stay together!', {
+                fontFamily: 'Inter', fontSize: '9px', color: '#333355'
+            }).setOrigin(0.5).setScrollFactor(0).setDepth(101);
+            
+            this.hudCreated = true;
+        });
     }
 
     updateHUD() {
+        if (!this.hudCreated) return;
         const pressed = this.buttons.filter(b => b.isPressed).length;
         const openDoors = this.doors.filter(d => d.isOpen).length;
         const totalBtns = this.buttons.length;
