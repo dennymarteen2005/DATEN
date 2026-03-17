@@ -22,7 +22,21 @@ const io = new Server(server, {
 });
 
 // Serve everything inside the "public" folder as static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files with no-cache to prevent stale deployments
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    // HTML files: always revalidate
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+    // JS/CSS files: revalidate every time (browser still uses etag for efficiency)
+    else if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    }
+  }
+}));
 
 // --- Game State Storage ---
 // Each room stores: players, game state, which level they're on
